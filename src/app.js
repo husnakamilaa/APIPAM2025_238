@@ -13,6 +13,10 @@ app.get("/", (req, res) => {
   res.json({ message: "API Visiograph running" });
 });
 
+//route login
+const authRoutes = require("./routes/authRoutes");
+app.use("/api/auth", authRoutes);
+
 // buat yang anggota dulu
 const anggotaRoutes = require("./routes/anggotaRoutes");
 app.use("/api/anggota", anggotaRoutes);

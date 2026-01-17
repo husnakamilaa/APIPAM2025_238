@@ -3,10 +3,10 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const peminjamanController = require("../controllers/peminjamanController");
 
-router.post("/", authMiddleware, peminjamanController.createPeminjaman);
-router.get("/", authMiddleware, peminjamanController.getAllPeminjaman);
-router.get("/:id", authMiddleware, peminjamanController.getPeminjamanById);
-router.put("/:id", authMiddleware, peminjamanController.updatePeminjaman);
-router.delete("/:id", authMiddleware, peminjamanController.deletePeminjaman);
+router.post("/", peminjamanController.createPeminjaman);
+router.get("/", peminjamanController.getAllPeminjaman);
+router.get("/:id", peminjamanController.getPeminjamanById);
+router.put("/:id", peminjamanController.updatePeminjaman);
+router.delete("/:id", peminjamanController.deletePeminjaman);
 
 module.exports = router;

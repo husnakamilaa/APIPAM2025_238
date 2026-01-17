@@ -1,8 +1,5 @@
 const db = require("../config/database");
 
-/**
- * CREATE peminjaman
- */
 exports.createPeminjaman = (req, res) => {
   const {
     id_barang,
@@ -13,7 +10,6 @@ exports.createPeminjaman = (req, res) => {
     status_pinjam
   } = req.body;
 
-  // 1. CEK STOK BARANG DULU KIDSZ //////////////////////////////////////////////////////////////////////////////////////////
   const sqlCheckStok = "SELECT nama, jumlah_total FROM barang WHERE id = ?";
   
   db.query(sqlCheckStok, [id_barang], (err, results) => {
@@ -29,7 +25,6 @@ exports.createPeminjaman = (req, res) => {
       });
     }
 
-    // 2. BARU INSERT /////////////////////////////////////////////////////////////////////////////////
     const sqlInsert = `
       INSERT INTO peminjaman
       (id_barang, id_anggota, tanggal_pinjam, tanggal_kembali, jumlah_pinjam, status_pinjam)
@@ -44,7 +39,6 @@ exports.createPeminjaman = (req, res) => {
           return res.status(500).json({ message: "Gagal menambah peminjaman", error: err.message });
         }
 
-        // 3. UPDATE STOK DI TABEL BARANG (KURANGI STOK) ///////////////////////////////////////////////////////////
         const sqlUpdateStok = "UPDATE barang SET jumlah_total = jumlah_total - ? WHERE id = ?";
         
         db.query(sqlUpdateStok, [jumlah_pinjam, id_barang], (updateErr) => {
@@ -61,9 +55,6 @@ exports.createPeminjaman = (req, res) => {
   });
 };
 
-/**
- * READ semua peminjaman (JOIN)
- */
 exports.getAllPeminjaman = (req, res) => {
   const sql = `
     SELECT p.*, a.nama AS nama_anggota, b.nama AS nama_barang
@@ -79,9 +70,6 @@ exports.getAllPeminjaman = (req, res) => {
   });
 };
 
-/**
- * GET peminjaman by ID
- */
 exports.getPeminjamanById = (req, res) => {
   const { id } = req.params;
 
@@ -99,41 +87,34 @@ exports.getPeminjamanById = (req, res) => {
   });
 };
 
-/**
- * UPDATE peminjaman
- */
 exports.updatePeminjaman = (req, res) => {
   const { id } = req.params;
-  const {
-    id_barang,
-    id_anggota,
-    tanggal_pinjam,
-    tanggal_kembali,
-    jumlah_pinjam,
-    status_pinjam
-  } = req.body;
+  const { id_barang, jumlah_pinjam, status_pinjam } = req.body;
 
-  const sql = `
-    UPDATE peminjaman
-    SET id_barang=?, id_anggota=?, tanggal_pinjam=?, tanggal_kembali=?,
-        jumlah_pinjam=?, status_pinjam=?
-    WHERE id = ?
-  `;
+  db.query("SELECT status_pinjam FROM peminjaman WHERE id = ?", [id], (err, results) => {
+    if (err) return res.status(500).json(err);
+    const statusLama = results[0].status_pinjam;
 
-  db.query(
-    sql,
-    [id_barang, id_anggota, tanggal_pinjam, tanggal_kembali, jumlah_pinjam, status_pinjam, id],
-    (err) => {
-      if (err) return res.status(500).json(err);
+    db.beginTransaction((err) => {
+      const sqlUpdate = `UPDATE peminjaman SET id_barang=?, id_anggota=?, tanggal_pinjam=?, tanggal_kembali=?, jumlah_pinjam=?, status_pinjam=? WHERE id = ?`;
+      db.query(sqlUpdate, [id_barang, req.body.id_anggota, req.body.tanggal_pinjam, req.body.tanggal_kembali, jumlah_pinjam, status_pinjam, id], (err) => {
+        if (err) return db.rollback(() => res.status(500).json(err));
 
-      res.json({ message: "Data peminjaman berhasil diupdate" });
-    }
-  );
+        if (statusLama === 'Dipinjam' && status_pinjam === 'Kembali') {
+          const sqlRestoreStok = "UPDATE barang SET jumlah_total = jumlah_total + ? WHERE id = ?";
+          db.query(sqlRestoreStok, [jumlah_pinjam, id_barang], (err) => {
+            if (err) return db.rollback(() => res.status(500).json(err));
+            db.commit(() => res.json({ message: "Barang dikembalikan & stok bertambah" }));
+          });
+        } else {
+          db.commit(() => res.json({ message: "Data peminjaman berhasil diupdate" }));
+        }
+      });
+    });
+  });
 };
 
-/**
- * DELETE peminjaman
- */
+
 exports.deletePeminjaman = (req, res) => {
   const { id } = req.params;
 

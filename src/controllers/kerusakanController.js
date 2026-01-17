@@ -1,8 +1,5 @@
 const db = require("../config/database");
 
-/**
- * CREATE kerusakan
- */
 exports.createKerusakan = (req, res) => {
   const { id_barang, deskripsi, jumlah, tanggal, status_perbaikan } = req.body;
 
@@ -45,9 +42,6 @@ exports.createKerusakan = (req, res) => {
   });
 };
 
-/**
- * READ semua kerusakan (JOIN barang)
- */
 exports.getAllKerusakan = (req, res) => {
   const sql = `
     SELECT k.*, b.nama AS nama_barang
@@ -62,9 +56,6 @@ exports.getAllKerusakan = (req, res) => {
   });
 };
 
-/**
- * GET kerusakan by ID
- */
 exports.getKerusakanById = (req, res) => {
   const { id } = req.params;
 
@@ -82,39 +73,35 @@ exports.getKerusakanById = (req, res) => {
   });
 };
 
-/**
- * UPDATE kerusakan
- */
+
 exports.updateKerusakan = (req, res) => {
   const { id } = req.params;
-  const {
-    id_barang,
-    deskripsi,
-    jumlah,
-    tanggal,
-    status_perbaikan
-  } = req.body;
+  const { id_barang, jumlah, status_perbaikan } = req.body;
 
-  const sql = `
-    UPDATE kerusakan
-    SET id_barang=?, deskripsi=?, jumlah=?, tanggal=?, status_perbaikan=?
-    WHERE id = ?
-  `;
+  const sqlGetOld = "SELECT status_perbaikan FROM kerusakan WHERE id = ?";
+  db.query(sqlGetOld, [id], (err, results) => {
+    if (err) return res.status(500).json(err);
+    const statusLama = results[0].status_perbaikan;
 
-  db.query(
-    sql,
-    [id_barang, deskripsi, jumlah, tanggal, status_perbaikan, id],
-    (err) => {
-      if (err) return res.status(500).json(err);
+    db.beginTransaction((err) => {
+      const sqlUpdate = `UPDATE kerusakan SET id_barang=?, deskripsi=?, jumlah=?, tanggal=?, status_perbaikan=? WHERE id = ?`;
+      db.query(sqlUpdate, [id_barang, req.body.deskripsi, jumlah, req.body.tanggal, status_perbaikan, id], (err) => {
+        if (err) return db.rollback(() => res.status(500).json(err));
 
-      res.json({ message: "Data kerusakan berhasil diupdate" });
-    }
-  );
+        if (statusLama === 'Belum' && status_perbaikan === 'Sudah') {
+          const sqlAddStok = "UPDATE barang SET jumlah_total = jumlah_total + ? WHERE id = ?";
+          db.query(sqlAddStok, [jumlah, id_barang], (err) => {
+            if (err) return db.rollback(() => res.status(500).json(err));
+            db.commit(() => res.json({ message: "Data update & stok dikembalikan" }));
+          });
+        } else {
+          db.commit(() => res.json({ message: "Data kerusakan berhasil diupdate" }));
+        }
+      });
+    });
+  });
 };
 
-/**
- * DELETE kerusakan
- */
 exports.deleteKerusakan = (req, res) => {
   const { id } = req.params;
 
